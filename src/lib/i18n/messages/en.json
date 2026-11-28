@@ -3050,14 +3050,16 @@
         "id_back": "Identity document — back",
         "face_video": "Face video",
         "proof_of_address": "Proof of address",
-        "other": "Other document"
+        "other": "Other document",
+        "passport": "International passport — photo page"
       },
       "guidance": {
-        "id_front": "The side with your photograph and name. A clear, well-lit photo or scan.",
-        "id_back": "The reverse side. Skip this if your document has only one side.",
+        "id_front": "The side with your photograph, name and card number. For a national ID card or another government-issued card. A clear, well-lit photo or scan.",
+        "id_back": "The reverse side of your identity card, if it has one.",
         "face_video": "A short video of your face, holding your document, saying your name and today's date. 10–30 seconds is plenty. No facial-recognition processing — a person reviews it.",
         "proof_of_address": "A utility bill, bank statement or tenancy document from the last three months.",
-        "other": "Anything else the reviewer should see."
+        "other": "Anything else the reviewer should see.",
+        "passport": "The page with your photograph, name, passport number and expiry date. A clear, well-lit photo or scan."
       },
       "errFullLegalName": "Enter your full legal name as it appears on your document.",
       "errEmail": "Enter a valid email address.",
@@ -3072,7 +3074,42 @@
       "errVideoConsent": "Please give your consent to the face-video review.",
       "errDeclaration": "Please confirm the declaration.",
       "errorBody": "Please correct the highlighted fields and try again.",
-      "invalidType": "That capability is not recognised."
+      "invalidType": "That capability is not recognised.",
+      "requirementsHeading": "What you need to complete",
+      "requirementsIntro": "Work through these four items in order. The checklist updates as you save and upload.",
+      "requirement": {
+        "label": {
+          "personal": "Personal information",
+          "identity_document": "Identity document",
+          "face_video": "Face video",
+          "consent": "Declaration and consent"
+        },
+        "body": {
+          "personal": "Your legal name, contact details, date of birth, address and identity details.",
+          "identity_document": "Upload the front of your national ID card or other government-issued ID, or the photo page of your international passport. One of these is required; the back is optional.",
+          "face_video": "Record a short video of your face while holding your identity document and saying your name and today’s date.",
+          "consent": "Tick both consent boxes and submit the completed application for review."
+        }
+      },
+      "requirementComplete": "Complete",
+      "requirementIncomplete": "Required",
+      "requiredDocumentsHeading": "Required documents",
+      "requiredDocumentsIntro": "Choose a file for each item below. Your upload starts automatically; the item shows as complete when it has been saved.",
+      "identityDocumentsHeading": "Identity document",
+      "identityDocumentsIntro": "Upload the front of your national ID card or other government-issued ID, or the photo page of your international passport. One identity document is required; the back is optional.",
+      "identityBackHint": "Optional: add the back of your identity card if it contains information.",
+      "faceVideoHeading": "Face video",
+      "additionalDocumentsHeading": "Additional documents (optional)",
+      "additionalDocumentsIntro": "Add a proof of address or another document only if the reviewer has asked for it.",
+      "documentSlotRequired": "Required",
+      "documentSlotAlternative": "Choose one (required)",
+      "documentSlotOptional": "Optional",
+      "documentSlotUploaded": "Uploaded",
+      "autoUploadHint": "The upload starts as soon as you choose a file.",
+      "applicationRequiredForUploads": "Save your personal information first. The document uploads unlock once your application exists.",
+      "missingDocumentsBeforeSubmit": "Upload the required identity document and face video before submitting for review.",
+      "savePersonalFirst": "Save your personal information to continue.",
+      "chooseFileFor": "Choose a file for {item}"
     },
     "dashboards": {
       "nav": {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { useFormStatus } from "react-dom";
 
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -16,16 +15,19 @@ import {
 } from "@/lib/real-estate/kyc-actions";
 import {
   KYC_ID_TYPES,
+  KYC_REQUIREMENTS,
   KYC_RESIDENCY_STATUSES,
+  hasIdentityDocument,
   isKycDecidedStatus,
-  kycDocumentKindLabelKey,
   kycIdTypeLabelKey,
+  kycRequirementBodyKey,
+  kycRequirementLabelKey,
   kycResidencyStatusLabelKey,
   kycStatusLabelKey,
   type KycApplicationRecord,
-  type KycDocumentKind,
   type KycDocumentRecord,
   type KycMembershipType,
+  type KycRequirementKey,
 } from "@/lib/real-estate/kyc";
 import { KYC_ERROR_KEYS } from "@/lib/validation/kyc";
 
@@ -59,11 +61,11 @@ export function KycApplicationForm({
 }) {
   const t = createTranslator(locale).t;
 
-  const [state, submitAction] = useActionState(
+  const [state, submitAction, submitting] = useActionState(
     saveKycApplicationAction.bind(null, membershipType, "submit", locale),
     null as KycActionState | null,
   );
-  const [draftState, draftAction] = useActionState(
+  const [draftState, draftAction, savingDraft] = useActionState(
     saveKycApplicationAction.bind(null, membershipType, "draft", locale),
     null as KycActionState | null,
   );
@@ -76,17 +78,47 @@ export function KycApplicationForm({
   const fieldError = (
     field: keyof typeof KYC_ERROR_KEYS,
   ): string | undefined =>
-    errorState?.fields?.[field] ? t(`account.kyc.${KYC_ERROR_KEYS[field]}`) : undefined;
+    errorState?.fields?.[field]
+      ? t(`account.kyc.${KYC_ERROR_KEYS[field]}`)
+      : undefined;
 
   const isApproved = application?.status === "approved";
-  const isDecided = application !== null && isKycDecidedStatus(application.status);
+  const isDecided =
+    application !== null && isKycDecidedStatus(application.status);
   const readOnly = isApproved;
+
+  const uploadedKinds = documents.map((document) => document.kind);
+  const identityUploaded = hasIdentityDocument(uploadedKinds);
+  const videoUploaded = uploadedKinds.includes("face_video");
+  const documentsReady = identityUploaded && videoUploaded;
+  const personalComplete = Boolean(
+    application?.fullLegalName &&
+    application.email &&
+    application.phone &&
+    application.countryOfResidence &&
+    application.currentLocation &&
+    application.dateOfBirth &&
+    application.idIssuingCountry &&
+    application.idNumberLast4,
+  );
+  const consentComplete =
+    Boolean(application?.videoConsentAt && application.declarationAcceptedAt) &&
+    application?.status !== "rejected" &&
+    application?.status !== "changes_requested";
+  const requirementState: Record<KycRequirementKey, boolean> = {
+    personal: personalComplete,
+    identity_document: identityUploaded,
+    face_video: videoUploaded,
+    consent: consentComplete,
+  };
 
   return (
     <div className="space-y-8">
       {application ? (
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-muted">{t("account.kyc.statusLabel")}</span>
+          <span className="text-sm text-muted">
+            {t("account.kyc.statusLabel")}
+          </span>
           <Badge tone={isApproved ? "success" : "neutral"}>
             {t(kycStatusLabelKey(application.status))}
           </Badge>
@@ -113,8 +145,8 @@ export function KycApplicationForm({
             ? t("account.kyc.missingRequired", {
                 items: errorState.fields.form
                   .split(",")
-                  .map((kind) =>
-                    t(kycDocumentKindLabelKey(kind as KycDocumentKind)),
+                  .map((requirement) =>
+                    t(kycRequirementLabelKey(requirement as KycRequirementKey)),
                   )
                   .join(", "),
               })
@@ -122,14 +154,46 @@ export function KycApplicationForm({
         </Notice>
       ) : null}
 
-      <KycDocumentUpload
-        membershipType={membershipType}
-        documents={documents}
-        locale={locale}
-        readOnly={readOnly}
-      />
+      <Card>
+        <h2 className="text-lg font-semibold text-ink-900">
+          {t("account.kyc.requirementsHeading")}
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          {t("account.kyc.requirementsIntro")}
+        </p>
+        <ol className="mt-4 border-t border-border">
+          {KYC_REQUIREMENTS.map((requirement, index) => {
+            const complete = requirementState[requirement];
+            return (
+              <li
+                key={requirement}
+                className="grid grid-cols-[2rem_minmax(0,1fr)] items-start gap-3 border-b border-border py-3 last:border-0 sm:grid-cols-[2rem_minmax(0,1fr)_auto]"
+              >
+                <span className="font-mono text-xs text-muted">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-ink-900">
+                    {t(kycRequirementLabelKey(requirement))}
+                  </p>
+                  <p className="mt-1 text-sm text-muted">
+                    {t(kycRequirementBodyKey(requirement))}
+                  </p>
+                </div>
+                <div className="col-start-2 sm:col-start-auto">
+                  <Badge tone={complete ? "success" : "neutral"}>
+                    {complete
+                      ? t("account.kyc.requirementComplete")
+                      : t("account.kyc.requirementIncomplete")}
+                  </Badge>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </Card>
 
-      <form action={submitAction} className="space-y-6" noValidate>
+      <form id="kyc-form" action={submitAction} className="space-y-6">
         <Card>
           <h2 className="text-lg font-semibold text-ink-900">
             {t("account.kyc.sectionPersonal")}
@@ -182,6 +246,7 @@ export function KycApplicationForm({
               name="currentLocation"
               label={t("account.kyc.currentLocation")}
               defaultValue={application?.currentLocation ?? ""}
+              required
               error={fieldError("currentLocation")}
             />
             <SelectField
@@ -189,6 +254,8 @@ export function KycApplicationForm({
               name="residencyStatus"
               label={t("account.kyc.residencyStatusLabel")}
               defaultValue={application?.residencyStatus ?? "permanent"}
+              required
+              error={fieldError("residencyStatus")}
             >
               {KYC_RESIDENCY_STATUSES.map((status) => (
                 <option key={status} value={status}>
@@ -209,6 +276,8 @@ export function KycApplicationForm({
               name="idType"
               label={t("account.kyc.idTypeLabel")}
               defaultValue={application?.idType ?? "national_id_card"}
+              required
+              error={fieldError("idType")}
             >
               {KYC_ID_TYPES.map((type) => (
                 <option key={type} value={type}>
@@ -231,79 +300,106 @@ export function KycApplicationForm({
               hint={t("account.kyc.idNumberLast4Hint")}
               maxLength={4}
               defaultValue={application?.idNumberLast4 ?? ""}
+              required
               error={fieldError("idNumberLast4")}
             />
           </div>
         </Card>
+      </form>
 
-        {!readOnly ? (
-          <Card>
-            <h2 className="text-lg font-semibold text-ink-900">
-              {t("account.kyc.sectionSubmit")}
-            </h2>
+      {!readOnly ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <DraftButton
+            form="kyc-form"
+            formAction={draftAction}
+            label={t("account.kyc.saveDraft")}
+            pendingLabel={t("account.kyc.savingDraft")}
+            pending={savingDraft}
+          />
+          <p className="text-xs text-muted">
+            {t("account.kyc.savePersonalFirst")}
+          </p>
+        </div>
+      ) : null}
 
-            {!consentOpen ? (
-              <p className="mt-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setConsentOpen(true)}
-                >
-                  {application?.status === "rejected" ||
-                  application?.status === "changes_requested"
-                    ? t("account.kyc.resubmit")
-                    : t("account.kyc.submit")}
-                </Button>
-              </p>
-            ) : null}
+      <KycDocumentUpload
+        membershipType={membershipType}
+        documents={documents}
+        locale={locale}
+        readOnly={readOnly}
+        applicationReady={application !== null}
+      />
 
-            <div className={consentOpen ? "mt-4 space-y-4" : "hidden"}>
-              <ConsentRow
-                id="videoConsent"
-                label={t("account.kyc.videoConsent")}
-                error={
-                  errorState?.fields?.videoConsent
-                    ? t("errors.consent_required")
-                    : undefined
-                }
-              />
-              <ConsentRow
-                id="declaration"
-                label={t("account.kyc.declaration")}
-                error={
-                  errorState?.fields?.declaration
-                    ? t("errors.consent_required")
-                    : undefined
-                }
-              />
-              <p className="text-xs text-muted">{t("account.kyc.privacyNote")}</p>
-              <SubmitButton
-                label={t("account.kyc.submit")}
-                pendingLabel={t("account.kyc.submitting")}
-              />
-            </div>
-          </Card>
-        ) : null}
+      {!readOnly ? (
+        <Card>
+          <h2 className="text-lg font-semibold text-ink-900">
+            {t("account.kyc.sectionSubmit")}
+          </h2>
 
-        {!readOnly ? (
-          <div className="flex flex-wrap gap-3">
-            <DraftButton
-              formAction={draftAction}
-              label={t("account.kyc.saveDraft")}
-              pendingLabel={t("account.kyc.savingDraft")}
+          {!documentsReady ? (
+            <Notice tone="info">
+              {t("account.kyc.missingDocumentsBeforeSubmit")}
+            </Notice>
+          ) : null}
+
+          {!consentOpen ? (
+            <p className="mt-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setConsentOpen(true)}
+              >
+                {application?.status === "rejected" ||
+                application?.status === "changes_requested"
+                  ? t("account.kyc.resubmit")
+                  : t("account.kyc.submit")}
+              </Button>
+            </p>
+          ) : null}
+
+          <div className={consentOpen ? "mt-4 space-y-4" : "hidden"}>
+            <ConsentRow
+              form="kyc-form"
+              id="videoConsent"
+              label={t("account.kyc.videoConsent")}
+              error={
+                errorState?.fields?.videoConsent
+                  ? t("errors.consent_required")
+                  : undefined
+              }
+            />
+            <ConsentRow
+              form="kyc-form"
+              id="declaration"
+              label={t("account.kyc.declaration")}
+              error={
+                errorState?.fields?.declaration
+                  ? t("errors.consent_required")
+                  : undefined
+              }
+            />
+            <p className="text-xs text-muted">{t("account.kyc.privacyNote")}</p>
+            <SubmitButton
+              form="kyc-form"
+              label={t("account.kyc.submit")}
+              pendingLabel={t("account.kyc.submitting")}
+              pending={submitting}
+              disabled={!documentsReady}
             />
           </div>
-        ) : null}
-      </form>
+        </Card>
+      ) : null}
     </div>
   );
 }
 
 function ConsentRow({
+  form,
   id,
   label,
   error,
 }: {
+  form: string;
   id: string;
   label: string;
   error?: string;
@@ -312,9 +408,11 @@ function ConsentRow({
     <div>
       <div className="flex items-start gap-2.5">
         <input
+          form={form}
           id={id}
           name={id}
           type="checkbox"
+          required
           aria-invalid={error ? true : undefined}
           className="mt-0.5 h-4 w-4 shrink-0 rounded border-border-strong"
         />
@@ -332,33 +430,48 @@ function ConsentRow({
 }
 
 function SubmitButton({
+  form,
   label,
   pendingLabel,
+  pending,
+  disabled,
 }: {
+  form: string;
   label: string;
   pendingLabel: string;
+  pending: boolean;
+  disabled: boolean;
 }) {
-  const { pending } = useFormStatus();
   return (
-    <Button type="submit" disabled={pending} aria-busy={pending}>
+    <Button
+      type="submit"
+      form={form}
+      disabled={pending || disabled}
+      aria-busy={pending}
+    >
       {pending ? pendingLabel : label}
     </Button>
   );
 }
 
 function DraftButton({
+  form,
   formAction,
   label,
   pendingLabel,
+  pending,
 }: {
+  form: string;
   formAction: (formData: FormData) => void;
   label: string;
   pendingLabel: string;
+  pending: boolean;
 }) {
-  const { pending } = useFormStatus();
   return (
     <Button
       type="submit"
+      form={form}
+      formNoValidate
       variant="secondary"
       formAction={formAction}
       disabled={pending}

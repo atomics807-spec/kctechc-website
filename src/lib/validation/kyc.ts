@@ -30,12 +30,7 @@ export const kycApplicationSchema = z.object({
     .trim()
     .regex(/^[0-9+ ()./-]{5,32}$/, "invalidPhone"),
   countryOfResidence: z.string().trim().min(2, "tooShort").max(80, "tooLong"),
-  currentLocation: z
-    .string()
-    .trim()
-    .max(200, "tooLong")
-    .optional()
-    .transform((value) => value || ""),
+  currentLocation: z.string().trim().min(2, "tooShort").max(200, "tooLong"),
   residencyStatus: z.enum(KYC_RESIDENCY_STATUSES),
   // A date in the past. The 18+ rule is a database CHECK and a client check; this
   // only rejects a malformed or future date.
@@ -49,18 +44,12 @@ export const kycApplicationSchema = z.object({
     }, "invalidDate"),
   idType: z.enum(KYC_ID_TYPES),
   idIssuingCountry: z.string().trim().min(2, "tooShort").max(80, "tooLong"),
-  // Optional, and only ever four characters. Empty is allowed; anything else must
-  // be exactly four alphanumerics, matching `kyc_id_number_last4_format`. The
-  // `.optional()` is what makes the documented contract true for any caller: the
-  // form action happens to always send the key, but a caller that omits it must
-  // get an empty string rather than a validation failure.
+  // Only ever four characters, matching `kyc_id_number_last4_format`. The full
+  // number is never collected; the reviewer reads it from the document image.
   idNumberLast4: z
     .string()
     .trim()
-    .regex(/^[A-Za-z0-9]{4}$/, "invalidLast4")
-    .or(z.literal(""))
-    .optional()
-    .transform((value) => value || ""),
+    .regex(/^[A-Za-z0-9]{4}$/, "invalidLast4"),
 });
 
 export type KycApplicationInput = z.infer<typeof kycApplicationSchema>;
@@ -110,6 +99,7 @@ export const kycDocumentMetaSchema = z.object({
   kind: z.enum([
     "id_front",
     "id_back",
+    "passport",
     "face_video",
     "proof_of_address",
     "other",

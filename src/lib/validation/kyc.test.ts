@@ -1,7 +1,10 @@
-
 import { describe, expect, it } from "vitest";
 
-import { KYC_DOCUMENT_KINDS, KYC_ID_TYPES, KYC_RESIDENCY_STATUSES } from "@/lib/real-estate/kyc";
+import {
+  KYC_DOCUMENT_KINDS,
+  KYC_ID_TYPES,
+  KYC_RESIDENCY_STATUSES,
+} from "@/lib/real-estate/kyc";
 import {
   KYC_ERROR_KEYS,
   kycApplicationSchema,
@@ -52,17 +55,18 @@ describe("kycApplicationSchema", () => {
     expect(shape).toContain("idNumberLast4");
   });
 
-  it("accepts an omitted or empty last-four", () => {
-    // The field is documented as optional, so a caller that omits it must get an
-    // empty string rather than a validation failure. The form action happens to
-    // always send the key; this asserts the contract independent of that.
-    expect(
-      kycApplicationSchema.safeParse({ ...validApplication, idNumberLast4: "" }).success,
-    ).toBe(true);
+  it("requires the last four characters", () => {
+    for (const bad of ["", "  "]) {
+      expect(
+        kycApplicationSchema.safeParse({
+          ...validApplication,
+          idNumberLast4: bad,
+        }).success,
+        `expected ${JSON.stringify(bad)} to be refused`,
+      ).toBe(false);
+    }
     const { idNumberLast4: _omit, ...without } = validApplication;
-    const result = kycApplicationSchema.safeParse(without);
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.idNumberLast4).toBe("");
+    expect(kycApplicationSchema.safeParse(without).success).toBe(false);
   });
 
   it("refuses a last-four that is not exactly four alphanumerics", () => {
@@ -71,7 +75,10 @@ describe("kycApplicationSchema", () => {
         ...validApplication,
         idNumberLast4: bad,
       });
-      expect(result.success, `expected ${JSON.stringify(bad)} to be refused`).toBe(false);
+      expect(
+        result.success,
+        `expected ${JSON.stringify(bad)} to be refused`,
+      ).toBe(false);
     }
   });
 
@@ -86,11 +93,17 @@ describe("kycApplicationSchema", () => {
   it("refuses a residency status outside the vocabulary", () => {
     for (const status of KYC_RESIDENCY_STATUSES) {
       expect(
-        kycApplicationSchema.safeParse({ ...validApplication, residencyStatus: status }).success,
+        kycApplicationSchema.safeParse({
+          ...validApplication,
+          residencyStatus: status,
+        }).success,
       ).toBe(true);
     }
     expect(
-      kycApplicationSchema.safeParse({ ...validApplication, residencyStatus: "tourist" }).success,
+      kycApplicationSchema.safeParse({
+        ...validApplication,
+        residencyStatus: "tourist",
+      }).success,
     ).toBe(false);
   });
 
@@ -101,50 +114,77 @@ describe("kycApplicationSchema", () => {
       ).toBe(true);
     }
     expect(
-      kycApplicationSchema.safeParse({ ...validApplication, idType: "library_card" }).success,
+      kycApplicationSchema.safeParse({
+        ...validApplication,
+        idType: "library_card",
+      }).success,
     ).toBe(false);
   });
 
   it("refuses a malformed or future date of birth", () => {
     for (const bad of ["14/05/1990", "1990-5-4", "not-a-date"]) {
       expect(
-        kycApplicationSchema.safeParse({ ...validApplication, dateOfBirth: bad }).success,
+        kycApplicationSchema.safeParse({
+          ...validApplication,
+          dateOfBirth: bad,
+        }).success,
       ).toBe(false);
     }
     const future = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
     expect(
-      kycApplicationSchema.safeParse({ ...validApplication, dateOfBirth: future }).success,
+      kycApplicationSchema.safeParse({
+        ...validApplication,
+        dateOfBirth: future,
+      }).success,
     ).toBe(false);
   });
 
   it("refuses an invalid email or a too-short name", () => {
     expect(
-      kycApplicationSchema.safeParse({ ...validApplication, email: "nope" }).success,
+      kycApplicationSchema.safeParse({ ...validApplication, email: "nope" })
+        .success,
     ).toBe(false);
     expect(
-      kycApplicationSchema.safeParse({ ...validApplication, fullLegalName: "N" }).success,
+      kycApplicationSchema.safeParse({
+        ...validApplication,
+        fullLegalName: "N",
+      }).success,
     ).toBe(false);
   });
 
-  it("normalizes an omitted current location to an empty string", () => {
+  it("requires a current location", () => {
+    expect(
+      kycApplicationSchema.safeParse({
+        ...validApplication,
+        currentLocation: "",
+      }).success,
+    ).toBe(false);
     const { currentLocation: _omit, ...without } = validApplication;
-    const result = kycApplicationSchema.safeParse(without);
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.data.currentLocation).toBe("");
+    expect(kycApplicationSchema.safeParse(without).success).toBe(false);
   });
 });
 
 describe("kycConsentSchema", () => {
   it("requires both consents for a submission", () => {
-    expect(kycConsentSchema.safeParse({ videoConsent: true, declaration: true }).success).toBe(true);
+    expect(
+      kycConsentSchema.safeParse({ videoConsent: true, declaration: true })
+        .success,
+    ).toBe(true);
   });
 
   it("refuses a missing consent rather than treating it as optional", () => {
     // Consent to face-video processing and a declaration of ownership are
     // preconditions of submitting, not courtesies.
-    expect(kycConsentSchema.safeParse({ videoConsent: true }).success).toBe(false);
-    expect(kycConsentSchema.safeParse({ declaration: true }).success).toBe(false);
-    expect(kycConsentSchema.safeParse({ videoConsent: false, declaration: true }).success).toBe(false);
+    expect(kycConsentSchema.safeParse({ videoConsent: true }).success).toBe(
+      false,
+    );
+    expect(kycConsentSchema.safeParse({ declaration: true }).success).toBe(
+      false,
+    );
+    expect(
+      kycConsentSchema.safeParse({ videoConsent: false, declaration: true })
+        .success,
+    ).toBe(false);
     expect(kycConsentSchema.safeParse({}).success).toBe(false);
   });
 });
@@ -157,7 +197,9 @@ describe("kycDocumentMetaSchema", () => {
   });
 
   it("refuses a document kind outside the vocabulary", () => {
-    expect(kycDocumentMetaSchema.safeParse({ kind: "selfie" }).success).toBe(false);
+    expect(kycDocumentMetaSchema.safeParse({ kind: "selfie" }).success).toBe(
+      false,
+    );
     expect(kycDocumentMetaSchema.safeParse({}).success).toBe(false);
   });
 
@@ -179,7 +221,9 @@ describe("kycDecisionSchema", () => {
   });
 
   it("refuses an unknown decision", () => {
-    expect(kycDecisionSchema.safeParse({ decision: "escalate" }).success).toBe(false);
+    expect(kycDecisionSchema.safeParse({ decision: "escalate" }).success).toBe(
+      false,
+    );
   });
 
   it("normalizes an absent reason to an empty string", () => {

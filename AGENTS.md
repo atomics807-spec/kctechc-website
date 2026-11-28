@@ -2362,6 +2362,41 @@ DEFINER`-adjacent write the cookie-bound client may not be allowed to make.
   identity evidence is reviewed. `profiles.date_of_birth` carries no age constraint — a minor may
   hold a buyer account.
 
+### KYC requirements, passport identity and button-free uploads
+
+- **The applicant page is an ordered checklist, not a pile of cards.** `KYC_REQUIREMENTS` is
+  `personal → identity_document → face_video → consent`; the requirements card renders it as a
+  numbered `<ol>` with a fixed index column, a text column and a status badge, so every row lines up
+  on mobile and desktop. `requirementState` marks a row complete from the stored application and
+  uploaded documents, so the list updates after a save or upload rather than being static copy.
+- **An identity document is `id_front` OR `passport`, and the database enum now says so.**
+  Migration `20260101000086_passport_kyc_document_kind.sql` adds `passport` before `face_video` in
+  `public.kyc_document_kind`; `KYC_PRIMARY_IDENTITY_KINDS` names the alternatives and
+  `missingKycRequirements` returns the requirement keys `identity_document` / `face_video`, not raw
+  document kinds. A passport holder is not asked for a card front or back, and a national-ID holder
+  is not asked for a passport. The upload slot labels and guidance are separate for each.
+- **There is no Upload button, and choosing a file is the action.** Each document has its own named
+  slot (`KycDocumentUpload`) with a hidden `kind`; the file input's `onChange` validates size in the
+  browser and calls `requestSubmit()`, so the upload starts as soon as a file is chosen. Each slot
+  remains its own multipart POST, because a face video must not be re-sent with a later application
+  edit. An uploaded slot replaces the form with the filename and a Remove control.
+- **Every application field is required before submission.** `currentLocation` and
+  `idNumberLast4` are now required in `kycApplicationSchema` as well as marked `required` in the
+  form; the form no longer has `noValidate`, so native validation blocks an incomplete submit.
+  `KYC_ERROR_KEYS` still maps each field to its message key for the server response.
+- **Submit is disabled until the identity and face-video requirements are present.** The disabled
+  button is backed by the Server Action's re-check, so it is a UX signal, not the control. The
+  "Save and continue later" draft button is deliberately `formNoValidate`: a draft is allowed to be
+  incomplete, and native required-field validation must not block it.
+- **The document forms cannot be nested inside the application form.** The page renders the
+  personal/identity `<form id="kyc-form">`, then the independent upload forms, then the consent
+  card. The consent checkboxes and the submit/draft buttons use the HTML `form="kyc-form"` attribute
+  to stay associated with the application form across that gap. Do not move the uploads inside the
+  main form; nested forms are invalid and would submit the wrong body.
+- **`KycApplicationForm.test.tsx` pins the visible rules**: requirement order, passport presence,
+  absence of a separate Upload button, every field `required`, and submit disabled until both
+  required documents exist.
+
 ### Landlord and agent dashboards (Phase 3)
 
 - **A characteristic field is shown only when the property kind supports it, and a

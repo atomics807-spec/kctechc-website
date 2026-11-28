@@ -3990,6 +3990,7 @@ export type Database = {
       kyc_document_kind:
         | "id_front"
         | "id_back"
+        | "passport"
         | "face_video"
         | "proof_of_address"
         | "other";
@@ -4319,6 +4320,7 @@ export const Constants = {
       kyc_document_kind: [
         "id_front",
         "id_back",
+        "passport",
         "face_video",
         "proof_of_address",
         "other",

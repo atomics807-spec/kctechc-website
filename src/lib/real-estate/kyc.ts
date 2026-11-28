@@ -123,6 +123,7 @@ export type KycIdType = (typeof KYC_ID_TYPES)[number];
 export const KYC_DOCUMENT_KINDS = [
   "id_front",
   "id_back",
+  "passport",
   "face_video",
   "proof_of_address",
   "other",
@@ -130,13 +131,26 @@ export const KYC_DOCUMENT_KINDS = [
 export type KycDocumentKind = (typeof KYC_DOCUMENT_KINDS)[number];
 
 /** The kinds that are an identity document (as opposed to a video or a note). */
-export const KYC_IDENTITY_KINDS = ["id_front", "id_back"] as const;
+export const KYC_IDENTITY_KINDS = ["id_front", "id_back", "passport"] as const;
 
-/** The kinds a valid application must carry at minimum. */
-export const KYC_REQUIRED_DOCUMENT_KINDS = [
-  "id_front",
+/** The identity kinds that satisfy the identity requirement on their own. */
+export const KYC_PRIMARY_IDENTITY_KINDS = ["id_front", "passport"] as const;
+
+/** Every row shown in the applicant's requirements checklist. */
+export const KYC_REQUIREMENTS = [
+  "personal",
+  "identity_document",
   "face_video",
-] as const satisfies readonly KycDocumentKind[];
+  "consent",
+] as const;
+export type KycRequirementKey = (typeof KYC_REQUIREMENTS)[number];
+
+/** The requirements a valid application must satisfy at minimum. */
+export const KYC_REQUIRED_REQUIREMENTS = [
+  "identity_document",
+  "face_video",
+] as const satisfies readonly KycRequirementKey[];
+export type KycRequiredRequirement = (typeof KYC_REQUIRED_REQUIREMENTS)[number];
 
 /** The property-specific legal document kinds. */
 export const LEGAL_DOCUMENT_KINDS = [
@@ -170,11 +184,7 @@ export const KYC_REVIEW_ACTIONS = [
 export type KycReviewAction = (typeof KYC_REVIEW_ACTIONS)[number];
 
 /** The decisions a super admin may record. */
-export const KYC_DECISIONS = [
-  "approve",
-  "reject",
-  "request_changes",
-] as const;
+export const KYC_DECISIONS = ["approve", "reject", "request_changes"] as const;
 export type KycDecision = (typeof KYC_DECISIONS)[number];
 
 /** The status a decision moves an application to. */
@@ -296,6 +306,15 @@ export function isKycMembershipType(value: string): value is KycMembershipType {
   return (KYC_MEMBERSHIP_TYPES as readonly string[]).includes(value);
 }
 
+/** True when the document kinds include a primary identity document. */
+export function hasIdentityDocument(
+  uploaded: readonly KycDocumentKind[],
+): boolean {
+  return uploaded.some((kind) =>
+    (KYC_PRIMARY_IDENTITY_KINDS as readonly string[]).includes(kind),
+  );
+}
+
 /** True when the value is a known document kind. */
 export function isKycDocumentKind(value: string): value is KycDocumentKind {
   return (KYC_DOCUMENT_KINDS as readonly string[]).includes(value);
@@ -336,14 +355,29 @@ export function isOldEnoughToApply(
 }
 
 /**
- * Which of the required documents are missing for a set of uploaded kinds.
+ * Which requirements are missing for a set of uploaded kinds.
  *
- * The form and the action both use this so "you must upload your ID and a face
- * video" is one rule, stated once.
+ * An identity document is `id_front` OR `passport`; a passport holder must not be
+ * asked for a card front, and a card holder must not be asked for a passport. The
+ * form and the action both use this so the rule is stated once.
  */
-export function missingRequiredDocuments(
+export function missingKycRequirements(
   uploaded: readonly KycDocumentKind[],
-): KycDocumentKind[] {
+): KycRequiredRequirement[] {
   const present = new Set(uploaded);
-  return KYC_REQUIRED_DOCUMENT_KINDS.filter((kind) => !present.has(kind));
+  return KYC_REQUIRED_REQUIREMENTS.filter((requirement) => {
+    if (requirement === "identity_document")
+      return !hasIdentityDocument(uploaded);
+    return !present.has("face_video");
+  });
+}
+
+/** The label key for a checklist row. */
+export function kycRequirementLabelKey(key: KycRequirementKey): string {
+  return `account.kyc.requirement.label.${key}`;
+}
+
+/** The explanation key for a checklist row. */
+export function kycRequirementBodyKey(key: KycRequirementKey): string {
+  return `account.kyc.requirement.body.${key}`;
 }

@@ -11,7 +11,8 @@ import {
   KYC_MEMBERSHIP_TYPES,
   KYC_MINIMUM_AGE,
   KYC_REAPPLICABLE_STATUSES,
-  KYC_REQUIRED_DOCUMENT_KINDS,
+  KYC_PRIMARY_IDENTITY_KINDS,
+  KYC_REQUIRED_REQUIREMENTS,
   KYC_RESIDENCY_STATUSES,
   KYC_STATUSES,
   KYC_APPLICANT_VISIBLE_NOTE_ACTIONS,
@@ -22,7 +23,7 @@ import {
   kycDocumentKindLabelKey,
   kycIdTypeLabelKey,
   kycStatusLabelKey,
-  missingRequiredDocuments,
+  missingKycRequirements,
 } from "./kyc";
 
 /**
@@ -50,17 +51,30 @@ function stripSqlComments(sql: string): string {
 }
 
 function enumMembers(sql: string, typeName: string): string[] {
+  const members: string[] = [];
   const create = sql.match(
     new RegExp(
       `create type public\\.${typeName} as enum\\s*\\(([^)]*)\\)`,
       "i",
     ),
   );
-  const members: string[] = [];
   if (create?.[1]) {
     for (const match of create[1].matchAll(/'([^']+)'/g)) {
       if (match[1]) members.push(match[1]);
     }
+  }
+  for (const match of sql.matchAll(
+    new RegExp(
+      `alter type public\\.${typeName} add value (?:if not exists )?'([^']+)'(?:\\s+before\\s+'([^']+)')?`,
+      "gi",
+    ),
+  )) {
+    const value = match[1];
+    if (!value || members.includes(value)) continue;
+    const before = match[2];
+    const at = before ? members.indexOf(before) : -1;
+    if (at >= 0) members.splice(at, 0, value);
+    else members.push(value);
   }
   return members;
 }
@@ -70,6 +84,15 @@ const kycMigration = stripSqlComments(
     join(MIGRATIONS_DIR, "20260101000060_kyc_verification.sql"),
     "utf8",
   ),
+);
+
+const kycDocumentKindMigrations = stripSqlComments(
+  [
+    "20260101000060_kyc_verification.sql",
+    "20260101000086_passport_kyc_document_kind.sql",
+  ]
+    .map((file) => readFileSync(join(MIGRATIONS_DIR, file), "utf8"))
+    .join("\n"),
 );
 
 const signupMigration = stripSqlComments(
@@ -87,9 +110,7 @@ describe("KYC mirrors match the migration", () => {
   });
 
   it("kyc_status", () => {
-    expect([...KYC_STATUSES]).toEqual(
-      enumMembers(kycMigration, "kyc_status"),
-    );
+    expect([...KYC_STATUSES]).toEqual(enumMembers(kycMigration, "kyc_status"));
   });
 
   it("kyc_id_type", () => {
@@ -98,7 +119,7 @@ describe("KYC mirrors match the migration", () => {
 
   it("kyc_document_kind", () => {
     expect([...KYC_DOCUMENT_KINDS]).toEqual(
-      enumMembers(kycMigration, "kyc_document_kind"),
+      enumMembers(kycDocumentKindMigrations, "kyc_document_kind"),
     );
   });
 
@@ -220,20 +241,27 @@ describe("age gate", () => {
 });
 
 describe("required documents", () => {
-  it("requires an identity document and a face video", () => {
-    expect([...KYC_REQUIRED_DOCUMENT_KINDS]).toEqual([
-      "id_front",
+  it("requires one primary identity document and a face video", () => {
+    expect([...KYC_REQUIRED_REQUIREMENTS]).toEqual([
+      "identity_document",
       "face_video",
     ]);
+    expect([...KYC_PRIMARY_IDENTITY_KINDS]).toEqual(["id_front", "passport"]);
   });
 
-  it("reports what is missing", () => {
-    expect(missingRequiredDocuments([])).toEqual(["id_front", "face_video"]);
-    expect(missingRequiredDocuments(["id_front"])).toEqual(["face_video"]);
-    expect(missingRequiredDocuments(["id_front", "face_video"])).toEqual([]);
-    // A back-of-document image does not satisfy the front requirement.
-    expect(missingRequiredDocuments(["id_back", "face_video"])).toEqual([
-      "id_front",
+  it("accepts a national ID front or a passport photo page", () => {
+    expect(missingKycRequirements([])).toEqual([
+      "identity_document",
+      "face_video",
+    ]);
+    expect(missingKycRequirements(["id_front"])).toEqual(["face_video"]);
+    expect(missingKycRequirements(["passport"])).toEqual(["face_video"]);
+    expect(missingKycRequirements(["id_front", "face_video"])).toEqual([]);
+    expect(missingKycRequirements(["passport", "face_video"])).toEqual([]);
+    // The back alone is not an identity document, and a passport does not
+    // require a card back.
+    expect(missingKycRequirements(["id_back", "face_video"])).toEqual([
+      "identity_document",
     ]);
   });
 });

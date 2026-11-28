@@ -25,7 +25,7 @@ import {
 
 import {
   isKycDocumentKind,
-  missingRequiredDocuments,
+  missingKycRequirements,
   type KycDocumentKind,
   type KycMembershipType,
   type KycStatus,
@@ -219,7 +219,7 @@ export async function saveKycApplicationAction(
       .select("kind")
       .eq("application_id", data.id);
 
-    const missing = missingRequiredDocuments(
+    const missing = missingKycRequirements(
       (docs ?? []).map((row) => row.kind as KycDocumentKind),
     );
 
